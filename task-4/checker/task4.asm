@@ -166,7 +166,13 @@ term:
 
         division:
                 ; EDI/EAX
-                ; TODO IMPARTIRE
+                push eax
+                push edi
+                pop eax
+                pop edi
+                xor edx, edx
+                div edi
+                mov edi, eax
                 jmp loop_12
         
         final:

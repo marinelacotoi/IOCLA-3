@@ -1,3 +1,4 @@
+%include 'printf32.asm'
 section .text
 	global intertwine
 
@@ -8,6 +9,7 @@ section .text
 ;  The resulting array is stored in v
 intertwine:
 	enter 0, 0
+	
 
 	leave
 	ret

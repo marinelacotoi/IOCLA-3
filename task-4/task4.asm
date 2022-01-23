@@ -1,14 +1,10 @@
-%include "../../printf32.asm"
 section .text
 
 global expression
 global term
 global factor
 
-extern printf
-extern strpbrk
 extern strlen
-extern strchr
 
 ; `factor(char *p, int *i)`
 ;       Evaluates "(expression)" or "number" expressions 
@@ -21,57 +17,62 @@ factor:
         push    ebp
         mov     ebp, esp
 
-        ; ebx = the string to be parsed
+        ; ebx = string-ul ce urmeaza a fi parsat
         mov ebx, [ebp + 8]
-        ; PRINTF32 `[EBX] : %s    \x0`, ebx
-        ; ecx = current position in string
+        ; ecx = pozitia curenta in string
         mov ecx, [ebp + 12]
-        ; PRINTF32 `[ECX] : %d    \x0`, [ecx]
 
-        ; salvez s[*i] in edx
         xor eax, eax
-        ; edx = *i
+
+        ; salvez caracterul curent in dl
         mov edx, [ecx]
-        ; dl = s[*i]
         mov dl, [ebx + edx]
+
+        ; verific daca trebuie calculat un (numar)
+        ; sau o (expresie)
         cmp dl, byte '('
         jnz else
 
+        ; calculez (expresie)
         if_paranthesis:
-                ; *i++
+                ; obtin rezultatul expresiei dintre
+                ; paranteze apeland functia expression
                 add [ecx], dword 1
                 
                 push ecx
                 push ebx
                 call expression
                 add esp, 8
-                ; PRINTF32 `[EAX]: %d \x0`, eax
                 mov edi, eax
 
-                ; (*i)++
                 add [ecx], dword 1
                 jmp return 
         
+        ; calculez (numar)
         else:
-                ; eax = strlen(s)
+                ; pastrez valoarea din ecx neafectata de strlen
                 push ecx
+                ; eax = strlen(s)
                 push ebx
                 call strlen
                 add esp, 4
+
                 pop ecx
                 ; eax = strlen(s) - *i
+                ; salvez in eax numarul de iteratii de la
+                ; pozitia curenta pana la sfarsitul string-ului
                 sub eax, [ecx]
 
         xor edi, edi
         xor edx, edx
+        
         while:
-                cmp eax, 0
-                jle return
-
-                ; dl = s[*i]
+                ; dl = caracterul curent
                 mov edx, [ecx]
                 mov dl, [ebx + edx]
 
+                ; ies din loop daca caracter-ul curent
+                ; este operator sau paranteza
                 cmp dl, '*'
                 jz return
                 cmp dl, '/'
@@ -83,20 +84,31 @@ factor:
                 cmp dl, ')'
                 jz return
 
-                sub dl, 48
+                ; calculez numarul cu formula
+                ; numar = numar * 10 + caracter - '0';
+                ; caracter - '0' transforma caracterul in int
+                push ecx
+                xor ecx, ecx
+                mov cl, dl
+                ; caracter - '0'
+                sub cl, 48
                 imul edi, 10
-                add edi, edx
+                add edi, ecx
+                pop ecx
 
-                ; (*i)++
+                ; trec la urmatorul caracter
                 add [ecx], dword 1
 
-                ; while (strlen(s) - *i != 0)
+                ; ies din loop daca s-a parcurs 
+                ; tot string-ul
                 sub eax, 1
+                cmp eax, 0
+                jle return
                 jmp while
 
 
         return:
-                ; PRINTF32 `[FACTOR]: %d \x0`, edi
+                ; mut in eax rezultatul functiei pentru a-l returna
                 mov eax, edi
                 leave
                 ret
@@ -112,45 +124,52 @@ term:
         push    ebp
         mov     ebp, esp
 
-        ; ebx = the string to be parsed
+        ; ebx = string-ul ce urmeaza a fi parsat
         mov ebx, [ebp + 8]
-        ; PRINTF32 `[EBX] : %s    \x0`, ebx
-        ; ecx = current position in string
+        ; ecx = pozitia curenta in string
         mov ecx, [ebp + 12]
-        ; PRINTF32 `[ECX] : %d    \x0`, [ecx]
 
+        ; apelez functia factor pentru a obtine
+        ; primul factor din operatiile
+        ; factor * factor || factor / factor
         push ecx
         push ebx
         call factor
         add esp, 8
         mov edi, eax
-        ; PRINTF32 `[TERM] : %d    \x0`, edi
-
         
-        loop_12:
-                ; edx = *i
+        term_loop:
+                ; salvez in dl caracterul curent
                 mov edx, [ecx]
-                ; dl = s[*i]
                 mov dl, [ebx + edx]
 
-                ; while (s[*i] == '*' || s[*i] == '/')
+                ; term_loop este echivalent cu
+                ; while (s[*i] == '*' || s[*i] == '/'), unde
+                ; s[*i] = caracterul curent
                 cmp dl, '*'
                 jz while_div_or_mul
                 cmp dl, '/'
                 jz while_div_or_mul
-                jmp final
+                jmp ret_term
 
         while_div_or_mul:
-                ; (*i)++
+                ; incrementez pozitia curenta din string
                 add [ecx], dword 1
 
-                ; call term
                 push edi
                 push edx
+
+                ; apelez factor pentru a obtine cel
+                ; de-al doilea factor
                 push ecx
                 push ebx
                 call factor
                 add esp, 8
+
+                ; pe langa parametrii functiei factor
+                ; am salvat pe stiva si edx si edi
+                ; pentru a le pastra valorile neafectate de
+                ; apelul functiei factor
                 pop edx
                 pop edi
 
@@ -158,24 +177,28 @@ term:
                 jz multiply
                 cmp dl, '/'
                 jz division
-                jmp loop_12
+                jmp term_loop
 
+        ; calculez factor * factor
         multiply:
                 imul edi, eax
-                jmp loop_12
+                jmp term_loop
 
+        ; calculez factor / factor
         division:
-                ; EDI/EAX
                 push eax
                 push edi
                 pop eax
                 pop edi
                 xor edx, edx
-                div edi
+                ; folosesc cdq pentru impartirea cu semn
+                cdq
+                idiv edi
                 mov edi, eax
-                jmp loop_12
+                jmp term_loop
         
-        final:
+        ret_term:
+                ; mut in eax rezultatul functiei pentru a-l returna
                 mov eax, edi
                 leave
                 ret
@@ -191,13 +214,14 @@ expression:
         push    ebp
         mov     ebp, esp
         
-        ; ebx = the string to be parsed
+        ; ebx = string-ul ce urmeaza a fi parsat
         mov ebx, [ebp + 8]
-        ; PRINTF32 `[EBX] : %s    \x0`, ebx
-        ; ecx = current position in string
+        ; ecx = pozitia curenta in string
         mov ecx, [ebp + 12]
-        ; PRINTF32 `[ECX] : %d    \x0`, [ecx]
 
+        ; apelez functia term pentru a obtine
+        ; primul termen din operatiile
+        ; term + term || term - term
         push ecx
         push ebx
         call term
@@ -205,46 +229,58 @@ expression:
         mov edi, eax
 
         loop:
-                ; edx = *i
+                ; salvez in dl caracterul curent
                 mov edx, [ecx]
-                ; dl = s[*i]
                 mov dl, [ebx + edx]
 
+                ; loop este echivalent cu
+                ; while (s[*i] == '+' || s[*i] == '-'), unde
+                ; s[*i] = caracterul curent
                 cmp dl, '+'
                 jz while_plus_or_minus
                 cmp dl, '-'
                 jz while_plus_or_minus
-                jmp end
+                jmp ret_expression
 
         while_plus_or_minus:
-                ; (*i)++
+                ; incrementez pozitia curenta din string
                 add [ecx], dword 1
 
-                ; call term
                 push edi
                 push edx
+
+                ; apelez term pentru a obtine cel
+                ; de-al doilea termen
                 push ecx
                 push ebx
                 call term
                 add esp, 8
+
+                ; pe langa parametrii functiei term
+                ; am salvat pe stiva si edx si edi
+                ; pentru a le pastra valorile neafectate de
+                ; apelul functiei term
                 pop edx
                 pop edi
                 
                 cmp dl, '+'
-                jz if_plus
+                jz plus
                 cmp dl, '-'
-                jz if_minus
+                jz minus
                 jmp loop
 
-        if_plus:
+        ; calculez term + term
+        plus:
                 add edi, eax
                 jmp loop
 
-        if_minus:
+        ; calculez term - term
+        minus:
                 sub edi, eax
                 jmp loop
 
-        end:
+        ret_expression:
+                ; mut in eax rezultatul functiei pentru a-l returna
                 mov eax, edi
                 leave
                 ret

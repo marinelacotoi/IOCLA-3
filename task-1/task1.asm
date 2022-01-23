@@ -1,10 +1,6 @@
-%include "../../printf32.asm"
-
 section .text
 	global sort
 
-
-extern printf
 ; struct node {
 ;     	int val;
 ;    	struct node* next;
@@ -22,19 +18,14 @@ extern printf
 
 sort:
 	enter 0, 0
-
-	xor eax, eax
-	xor ebx, ebx
-	xor ecx, ecx
-	xor edx, edx
-	xor edi, edi
-	xor esi, esi
-
 	; eax = numarul de elemente din vector
 	mov eax, [ebp + 8]
-
 	; ecx = adresa de inceput a vectorului
 	mov ebx, [ebp + 12]
+
+	; initializare registri
+	xor edi, edi
+	xor esi, esi
 
 	exteriorLoop:
 		; iterez prin elementele vectorului
@@ -42,12 +33,16 @@ sort:
 		; salvez adresa pentru next a fiecarui element
 		lea esi, [ebx + 8 * edi + 4]
 
-		; daca elementul e 1, il pun pe stiva
-		; pentru a-l putea returna la sfarsitul functiei
+		; daca valorea nodului curent este 1, pun nodul
+		; pe stiva pentru a-l putea returna la sfarsitul
+		; functiei
 		cmp ecx, 1
 		jnz next
 		push edi
 
+		; caut valoarea elementului curent + 1
+		; caci nodul corespondent acesteia va reprezenta 
+		; adresa de next a nodului curent
 		next:
 			push edi
 			xor edi, edi
@@ -60,6 +55,8 @@ sort:
 			jnz continue
 
 			push edi
+			; folosesc lea pentru a stoca in nodul
+			; curent adresa de next a urmatorului nod
 			lea edi, [ebx + 8 * edi]
 			mov [esi], edi
 			pop edi
@@ -71,10 +68,13 @@ sort:
 
 		pop edi
 		inc edi
+		; iterez prin lista pana cand am parcurs
+		; toate nodurile
 		cmp eax, edi
 		jnz exteriorLoop
 
 	pop edi
+	; pun in eax adresa corespunzatoare nodului 1
 	lea eax, [ebx + 8 * edi]
 	leave
 	ret

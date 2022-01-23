@@ -12,21 +12,23 @@ extern strlen
 extern qsort
 extern strcmp
 
-
 compare_func:
     enter 0, 0
+    ; salvez cel de-al doilea cuvant
+    ; dat ca parametru in ecx
     mov ecx, [ebp + 12]
     
     ; obtin lungimea celui de-al doilea cuvant
     push dword [ecx]
     call strlen
     add esp, 4
+
     ; o salvez in ecx si il adaug pe stiva pentru a-i pastra
     ; valoarea intacta
     mov ecx, eax
     push ecx
 
-    ; obtin lungimea primului cuvant o salvez in eax
+    ; obtin lungimea primului cuvant si o salvez in eax
     mov eax, [ebp + 8]
     push dword [eax]
     call strlen
@@ -66,6 +68,8 @@ sort:
     ; ecx = size
     mov ecx, [ebp + 16]
 
+    ; apelez functia qsort, pasand ca parametru 
+    ; functia de compare implementata anterior
     push compare_func
     push ecx
     push ebx
@@ -81,11 +85,18 @@ sort:
 ;  number_of_words reprezinta numarul de cuvinte
 get_words:
     enter 0, 0
+
+    ; eax = string-ul s
     mov eax, [ebp + 8]
+    ; ebx = words
     mov ebx, [ebp + 12]
+    ; ecx = number_of_words
     mov ecx, [ebp + 16]    
     xor edi, edi
 
+    ; apelez strtok de number_of_words ori
+    ; salvand de fiecare data in words token-ul returnat
+    ; de apelul functiei
     loop:
         push ecx
         push delim
@@ -94,7 +105,7 @@ get_words:
         add esp, 8
 
         mov [ebx], eax
-        add ebx, 4  
+        add ebx, 4
 
         mov eax, 0
         inc edi
